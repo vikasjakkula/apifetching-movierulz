@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 
-// Import Raleway font from Google Fonts
-const fontRalewayLink = document.getElementById('raleway-font-google');
-if (!fontRalewayLink) {
+// Import Montserrat font from Google Fonts for header
+const fontMontserratLink = document.getElementById('montserrat-font-google');
+if (!fontMontserratLink) {
   const link = document.createElement('link');
-  link.id = 'raleway-font-google';
+  link.id = 'montserrat-font-google';
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&display=swap';
   document.head.appendChild(link);
 }
 
@@ -71,21 +71,55 @@ function App() {
     setHasSearched(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/movies"
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch movies");
+      // Step 1: Search movies using OMDB API search endpoint
+      const searchUrl = `https://www.omdbapi.com/?s=${encodeURIComponent(trimmedQuery)}&apikey=b078be02`;
+      const searchResponse = await fetch(searchUrl);
+      
+      if (!searchResponse.ok) {
+        throw new Error("Failed to fetch movies from OMDB");
       }
-      const data = await response.json();
-      const moviesArray = Array.isArray(data) ? data : (data.movies || data.Movies || []);
-      setMovies(moviesArray);
-      const query = trimmedQuery.toLowerCase();
-      const filteredMovies = moviesArray.filter((movie) => {
-        const title = getField(movie, BACKEND_KEYS.title, "");
-        return title.toLowerCase().includes(query);
-      });
-      setFiltered(filteredMovies);
+      
+      const searchData = await searchResponse.json();
+      
+      if (searchData.Response === "False" || !searchData.Search) {
+        setMovies([]);
+        setFiltered([]);
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Fetch full details for each movie to get IMDB Rating
+      const moviesWithDetails = await Promise.all(
+        searchData.Search.slice(0, 20).map(async (movie) => {
+          try {
+            const detailUrl = `https://www.omdbapi.com/?i=${movie.imdbID}&apikey=b078be02`;
+            const detailResponse = await fetch(detailUrl);
+            const detailData = await detailResponse.json();
+            
+            return {
+              Title: detailData.Title || movie.Title,
+              Year: detailData.Year || movie.Year,
+              imdbRating: detailData.imdbRating || "N/A",
+              Type: detailData.Type || movie.Type,
+              imdbID: detailData.imdbID || movie.imdbID,
+              Poster: detailData.Poster || movie.Poster,
+            };
+          } catch (error) {
+            // If detail fetch fails, use search result data
+            return {
+              Title: movie.Title,
+              Year: movie.Year,
+              imdbRating: "N/A",
+              Type: movie.Type,
+              imdbID: movie.imdbID,
+              Poster: movie.Poster,
+            };
+          }
+        })
+      );
+
+      setMovies(moviesWithDetails);
+      setFiltered(moviesWithDetails);
       setDisplayedCount(12); // Reset to initial count on new search
     } catch (error) {
       console.error("Error fetching movies:", error);
@@ -191,330 +225,116 @@ function App() {
   }, [displayedCount, filtered.length, isLoadingMore, loading, hasSearched]);
 
   return (
-    <div className="for-easy-to-view">
-      {/* for easy to view */}
-      <style>{`
-        .for-easy-to-view {
-          min-height: 100vh;
-          min-width: 100vw;
-          background: #7C3AED;
-          font-family: 'Raleway', system-ui, sans-serif;
-          color: #FFF;
-          text-align: center;
-          padding: 0;
-          margin: 0;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          transition: all 0.3s ease;
-        }
-        .fev-header-title {
-          font-size: 2.6em;
-          font-weight: 700;
-          margin-top: 2rem;
-          margin-bottom: 1.3rem;
-          color: #FFF;
-          letter-spacing: 2px;
-          transition: color 0.3s;
-        }
-        .fev-search-bar-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          width: 100%;
-          gap: 0;
-          margin-bottom: 2.2rem;
-        }
-        .fev-search-input {
-          font-family: 'Raleway', system-ui, sans-serif;
-          font-size: 1.1em;
-          padding: 0.67em 1.12em;
-          border-radius: 8px 0 0 8px;
-          border: 2px solid #fff;
-          outline: none;
-          background: rgba(255,255,255,0.08);
-          color: #fff;
-          width: 240px;
-          transition: border-color 0.3s, background 0.3s;
-          box-shadow: 0 2px 8px rgba(67,34,202,0.02);
-        }
-        .fev-search-input:focus {
-          border-color: #fff;
-          background: rgba(255,255,255,0.15);
-        }
-        .fev-search-btn {
-          font-family: 'Raleway', system-ui, sans-serif;
-          border-radius: 0 8px 8px 0;
-          border: none;
-          padding: 0.67em 2em;
-          font-size: 1.1em;
-          font-weight: 600;
-          background: #fff;
-          color: #7C3AED;
-          cursor: pointer;
-          margin-left: -2px;
-          transition: all 0.3s ease;
-          box-shadow: 0 2px 4px rgba(67,34,202,0.10);
-        }
-        .fev-search-btn:hover {
-          background: #f5f3ff;
-          color: #512E9F;
-          box-shadow: 0 4px 12px rgba(67,34,202,0.14);
-        }
-        .fev-movies-list {
-          display: flex;
-          gap: 24px;
-          flex-wrap: wrap;
-          justify-content: center;
-          padding: 12px 10px 32px 10px;
-          width: 100%;
-          transition: all 0.3s ease;
-          min-height: 100px;
-        }
-        .fev-movie-card {
-          background: #fff;
-          border-radius: 16px;
-          box-shadow: 0 4px 16px 0 rgba(44,0,122,0.13);
-          min-width: 220px;
-          max-width: 250px;
-          min-height: 360px;
-          padding: 22px 14px 18px 14px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          margin-bottom: 18px;
-          transition: all 0.3s;
-          position: relative;
-          border: none;
-          word-break: break-word;
-        }
-        .fev-movie-card-details {
-          width: 100%;
-        }
-        .fev-movie-card-details p {
-          margin: 0.2em 0;
-          color: #333;
-          font-size: 0.99em;
-          text-align: left;
-          word-break: break-word;
-        }
-        .fev-movie-card-details strong {
-          color: #7C3AED;
-          font-weight: 600;
-        }
-        .fev-movie-card-details .fev-movie-detail-label {
-          min-width: 90px;
-          display: inline-block;
-        }
-        .fev-movie-img, .fev-movie-img-placeholder {
-          width: 100%;
-          height: 320px;
-          object-fit: cover;
-          border-radius: 10px;
-          margin-bottom: 1.1em;
-          background: #f3e8ff;
-        }
-        .fev-movie-img-placeholder {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #7C3AED;
-          background: #ede9fe;
-          font-style: italic;
-        }
-        .fev-movie-title {
-          color: #7C3AED;
-          font-size: 1.13em;
-          font-weight: 700;
-          margin: 0 0 0.5em 0;
-          text-align: center;
-          letter-spacing: 0.5px;
-        }
-        .fev-movie-year,
-        .fev-movie-genre {
-          font-size: 1em;
-          color: #333;
-          margin: 0 0 0.3em 0;
-          text-align: center;
-        }
-        .fev-movie-year strong,
-        .fev-movie-genre strong {
-          color: #7C3AED;
-          font-weight: 600;
-        }
-        /* Code block styling */
-        .for-easy-to-view code, .fev-code-block {
-          display: block;
-          background: rgba(255,255,255,0.95);
-          color: #333;
-          font-family: 'Fira Mono', SFMono-Regular, monospace;
-          border-radius: 8px;
-          padding: 18px 14px;
-          margin: 22px auto;
-          max-width: 660px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-          text-align: center;
-          transition: all 0.3s;
-          font-size: 1.05em;
-        }
-        /* "No movies found" and loading msg */
-        .fev-message {
-          font-size: 1.2em;
-          color: #FFF;
-          background: rgba(124,58,237,0.2);
-          padding: 1.2em 1em;
-          border-radius: 8px;
-          box-shadow: 0 2px 6px rgba(58,41,123,0.08);
-          display: inline-block;
-          margin: 1em auto;
-          font-weight: 500;
-        }
-        @media (max-width: 700px) {
-          .fev-header-title {
-            font-size: 2em;
-            margin-bottom: 0.6em;
-          }
-          .fev-search-bar-container {
-            flex-direction: column;
-            gap: 10px;
-          }
-          .fev-search-input,
-          .fev-search-btn {
-            width: 90vw;
-            min-width: 0;
-            border-radius: 8px !important;
-            margin-left: 0 !important;
-            box-sizing: border-box;
-          }
-          .fev-movies-list {
-            gap: 18px;
-            padding: 5px 0 14px 0;
-          }
-          .fev-movie-card {
-            min-width: 86vw;
-            max-width: 97vw;
-            padding: 16px 8px 12px 8px;
-          }
-          .fev-movie-img, .fev-movie-img-placeholder {
-            height: 52vw;
-            min-height: 180px;
-            max-height: 270px;
-          }
-        }
-      `}</style>
-      <h1 className="fev-header-title">
+    // Main container - Full viewport with purple background, centered flex column layout
+    <div className="min-h-screen w-full bg-violet text-white text-center p-0 m-0 flex flex-col items-center transition-all duration-300 ease-in-out">
+      {/* Header Title - Compact, neat, simple font using Montserrat */}
+      <h1 className="text-4xl md:text-5xl font-black mt-12 mb-8 text-white tracking-tight transition-colors duration-300 drop-shadow-lg font-montserrat">
         Find Your Movie!
       </h1>
-      <div className="fev-search-bar-container">
+      
+      {/* Search Bar Container - Flexbox row on desktop, column on mobile with better spacing */}
+      <div className="flex flex-col md:flex-row justify-center items-center w-full gap-3 md:gap-0 mb-12 px-4">
+        {/* Search Input - Rounded left side, semi-transparent white background with better styling */}
         <input
           type="text"
           placeholder="Search for a movie"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="fev-search-input"
+          className="text-base md:text-lg px-5 py-3.5 rounded-l-lg md:rounded-l-lg rounded-r-lg md:rounded-r-none border-2 border-white outline-none bg-white/10 backdrop-blur-sm text-white placeholder-white/70 w-full md:w-80 max-w-md transition-all duration-300 shadow-lg focus:border-white focus:bg-white/20 focus:shadow-xl focus:scale-105"
         />
+        {/* Search Button - Rounded right side, white background with violet text and hover effects */}
         <button
           onClick={handleSearch}
-          className="fev-search-btn"
+          className="rounded-r-lg md:rounded-r-lg rounded-l-lg md:rounded-l-none border-none px-10 py-3.5 text-base md:text-lg font-semibold bg-white text-violet cursor-pointer -ml-0.5 md:-ml-0.5 transition-all duration-300 shadow-lg hover:bg-violet-50 hover:text-violet-dark hover:shadow-xl hover:scale-105 active:scale-95 w-full md:w-auto"
         >
           Search
         </button>
       </div>
+
+      {/* Loading State - Better styled loading message */}
       {loading ? (
-        <div className="fev-message">Loading...</div>
+        <div className="text-xl md:text-2xl text-white bg-violet/30 backdrop-blur-sm px-8 py-6 rounded-xl shadow-xl inline-block my-8 font-medium border border-white/20">
+          Loading...
+        </div>
       ) : (
         hasSearched && (
-          <div className="fev-movies-list">
+          // Movies List Container - Flexbox grid with gap, responsive padding
+          <div className="flex gap-8 flex-wrap justify-center py-6 px-4 pb-12 w-full transition-all duration-300 ease-in-out min-h-[100px] max-w-7xl">
             {filtered.length === 0 ? (
-              <div className="fev-message">
+              // No Results Message - Better styled with backdrop blur
+              <div className="text-xl md:text-2xl text-white bg-violet/30 backdrop-blur-sm px-8 py-6 rounded-xl shadow-xl inline-block my-8 font-medium border border-white/20">
                 No movies found. Try a different search.
               </div>
             ) : (
               <>
                 {moviesToDisplay.map((movie, index) => {
-                const movieTitle = getField(movie, BACKEND_KEYS.title, "Unknown");
-                const movieYear = getField(movie, BACKEND_KEYS.year, "N/A");
-                const moviePoster = getField(movie, BACKEND_KEYS.poster, null);
-                const movieGenres = getField(movie, BACKEND_KEYS.genres, []);
+                // Extract only the required fields: Title, Year, IMDB Rating, Type
+                const movieTitle = movie.Title || "Unknown";
+                const movieYear = movie.Year || "N/A";
+                const movieImdbRating = movie.imdbRating || "N/A";
+                const movieType = movie.Type || "N/A";
+                const moviePoster = movie.Poster || null;
                 // Create unique key for each movie instance (including duplicates)
-                const movieId = getField(movie, BACKEND_KEYS.imdbID, `movie-${index}`);
+                const movieId = movie.imdbID || `movie-${index}`;
                 const uniqueKey = `${movieId}-${index}`;
-                // Additional requested fields:
-                const movieReleased = getField(movie, BACKEND_KEYS.released, "N/A");
-                const movieRated = getField(movie, BACKEND_KEYS.rated, "N/A");
-                const movieRuntime = getField(movie, BACKEND_KEYS.runtime, "N/A");
-                const movieDirector = getField(movie, BACKEND_KEYS.director, "N/A");
-                const movieWriter = getField(movie, BACKEND_KEYS.writer, "N/A");
-                const movieActors = getField(movie, BACKEND_KEYS.actors, "N/A");
-                const moviePlot = getField(movie, BACKEND_KEYS.plot, "N/A");
-                const movieLanguage = getField(movie, BACKEND_KEYS.language, "N/A");
-                const movieCountry = getField(movie, BACKEND_KEYS.country, "N/A");
-                const movieAwards = getField(movie, BACKEND_KEYS.awards, "N/A");
-                const movieType = getField(movie, BACKEND_KEYS.type, "N/A");
-                const movieTotalSeasons = getField(movie, BACKEND_KEYS.totalseasons, "N/A");
-
-                // Make genres display nicely
-                let genresDisplay = "N/A";
-                if (Array.isArray(movieGenres)) {
-                  genresDisplay = movieGenres.length > 0 ? movieGenres.join(", ") : "N/A";
-                } else if (typeof movieGenres === "string") {
-                  genresDisplay = movieGenres;
-                }
 
                 return (
+                  // Movie Card - White background, rounded corners, shadow, flex column layout with hover effects
                   <div
                     key={uniqueKey}
-                    className="fev-movie-card"
+                    className="bg-white rounded-2xl shadow-xl min-w-[280px] max-w-[320px] min-h-[420px] p-6 flex flex-col items-center mb-6 transition-all duration-300 relative border-none break-words w-[90vw] md:w-auto max-w-[95vw] md:max-w-[320px] hover:shadow-2xl hover:scale-105 hover:-translate-y-2"
                   >
+                    {/* Movie Poster or Placeholder - Better rounded corners and sizing */}
                     {moviePoster && moviePoster !== "N/A" ? (
                       <img
                         src={moviePoster}
                         alt={movieTitle}
-                        className="fev-movie-img"
+                        className="w-full h-96 object-cover rounded-xl mb-5 bg-violet-100 shadow-md"
                       />
                     ) : (
-                      <div className="fev-movie-img-placeholder">
+                      // Placeholder for missing poster - Centered text, violet background with better styling
+                      <div className="w-full h-96 rounded-xl mb-5 bg-gradient-to-br from-violet-50 to-violet-100 flex items-center justify-center text-violet italic text-lg font-medium shadow-md">
                         No Image
                       </div>
                     )}
-                    <h2 className="fev-movie-title">
+                    {/* Movie Title - Violet color, bold, centered with better typography */}
+                    <h2 className="text-violet text-xl font-bold m-0 mb-5 text-center tracking-wide leading-tight px-2">
                       {movieTitle}
                     </h2>
-                    <div className="fev-movie-card-details">
-                      <p><strong className="fev-movie-detail-label">Year:</strong> {movieYear}</p>
-                      <p><strong className="fev-movie-detail-label">Released On:</strong> {movieReleased}</p>
-                      <p><strong className="fev-movie-detail-label">Runtime:</strong> {movieRuntime}</p>
-                      <p><strong className="fev-movie-detail-label">Actors:</strong> {movieActors}</p>
-                      <p><strong className="fev-movie-detail-label">Language:</strong> {movieLanguage}</p>
-                      {movieType && String(movieType).toLowerCase() === "series" && (
-                        <p><strong className="fev-movie-detail-label">Total Seasons:</strong> {movieTotalSeasons}</p>
-                      )}
+                    {/* Movie Details Container - Display only: Title, Year, IMDB Rating, Type with better spacing */}
+                    <div className="w-full space-y-3 px-2">
+                      {/* Year - Better styled */}
+                      <p className="text-gray-800 text-base text-center break-words font-medium">
+                        <strong className="text-violet font-bold mr-2">Year:</strong> 
+                        <span className="text-gray-700">{movieYear}</span>
+                      </p>
+                      {/* IMDB Rating - Highlighted with better styling */}
+                      <p className="text-gray-800 text-base text-center break-words font-medium">
+                        <strong className="text-violet font-bold mr-2">IMDB Rating:</strong> 
+                        <span className="text-gray-700 font-semibold">{movieImdbRating}</span>
+                      </p>
+                      {/* Type - Better styled */}
+                      <p className="text-gray-800 text-base text-center break-words font-medium">
+                        <strong className="text-violet font-bold mr-2">Type:</strong> 
+                        <span className="text-gray-700 capitalize">{movieType}</span>
+                      </p>
                     </div>
                   </div>
                 );
               })}
-              {/* Infinite scroll trigger element - always active for continuous loading */}
+              {/* Infinite scroll trigger element - always active for continuous loading with better styling */}
               {filtered.length > 0 && (
                 <div 
                   ref={observerTarget} 
-                  style={{ 
-                    width: "100%", 
-                    minHeight: "150px", 
-                    marginTop: "30px",
-                    marginBottom: "20px",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    padding: "20px"
-                  }}
+                  className="w-full min-h-[150px] mt-10 mb-8 flex justify-center items-center p-5"
                 >
                   {isLoadingMore ? (
-                    <div className="fev-message" style={{ fontSize: "1em", padding: "0.8em" }}>
+                    <div className="text-lg text-white bg-violet/30 backdrop-blur-sm px-6 py-4 rounded-xl shadow-xl inline-block my-4 font-medium border border-white/20">
                       Loading more movies...
                     </div>
                   ) : (
-                    <div style={{ height: "50px", width: "100%" }}></div>
+                    <div className="h-12 w-full"></div>
                   )}
                 </div>
               )}
