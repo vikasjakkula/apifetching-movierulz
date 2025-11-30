@@ -252,11 +252,11 @@ function App() {
         </button>
       </div>
 
-      {/* Loading State - Better styled loading message */}
+      {/* Loading State - Simple text, no box */}
       {loading ? (
-        <div className="text-xl md:text-2xl text-white bg-violet/30 backdrop-blur-sm px-8 py-6 rounded-xl shadow-xl inline-block my-8 font-medium border border-white/20">
+        <p className="text-xl md:text-2xl text-white my-8 font-medium">
           Loading...
-        </div>
+        </p>
       ) : (
         hasSearched && (
           // Movies List Container - Flexbox grid with gap, responsive padding
@@ -330,9 +330,9 @@ function App() {
                   className="w-full min-h-[150px] mt-10 mb-8 flex justify-center items-center p-5"
                 >
                   {isLoadingMore ? (
-                    <div className="text-lg text-white bg-violet/30 backdrop-blur-sm px-6 py-4 rounded-xl shadow-xl inline-block my-4 font-medium border border-white/20">
+                    <p className="text-lg text-white my-4 font-medium">
                       Loading more movies...
-                    </div>
+                    </p>
                   ) : (
                     <div className="h-12 w-full"></div>
                   )}
