@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 // Import Montserrat font from Google Fonts for header
 const fontMontserratLink = document.getElementById('montserrat-font-google');
@@ -37,6 +38,7 @@ function App() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [favorites, setFavorites] = useState([]); // Store favorite movie IDs
   const observerTarget = useRef(null);
+  const navigate = useNavigate();
 
   // Load favorites from localStorage on component mount
   useEffect(() => {
@@ -56,14 +58,34 @@ function App() {
   }, [favorites]);
 
   // Toggle favorite status for a movie
-  const toggleFavorite = (movieId) => {
+  const toggleFavorite = (movieId, movieData) => {
     setFavorites((prev) => {
       if (prev.includes(movieId)) {
         // Remove from favorites
-        return prev.filter((id) => id !== movieId);
+        const updated = prev.filter((id) => id !== movieId);
+        // Remove from localStorage movies data
+        const savedMovies = localStorage.getItem('favoriteMoviesData');
+        if (savedMovies) {
+          const moviesData = JSON.parse(savedMovies);
+          const updatedMovies = moviesData.filter(movie => 
+            (movie.imdbID || movie.id) !== movieId
+          );
+          localStorage.setItem('favoriteMoviesData', JSON.stringify(updatedMovies));
+        }
+        return updated;
       } else {
         // Add to favorites
-        return [...prev, movieId];
+        const updated = [...prev, movieId];
+        // Save full movie data to localStorage
+        const savedMovies = localStorage.getItem('favoriteMoviesData');
+        const moviesData = savedMovies ? JSON.parse(savedMovies) : [];
+        // Check if movie already exists
+        const exists = moviesData.some(movie => (movie.imdbID || movie.id) === movieId);
+        if (!exists && movieData) {
+          moviesData.push(movieData);
+          localStorage.setItem('favoriteMoviesData', JSON.stringify(moviesData));
+        }
+        return updated;
       }
     });
   };
@@ -263,10 +285,36 @@ function App() {
   return (
     // Main container - Full viewport with purple background, centered flex column layout
     <div className="min-h-screen w-full bg-violet text-white text-center p-0 m-0 flex flex-col items-center transition-all duration-300 ease-in-out">
-      {/* Header Title - Compact, neat, simple font using Montserrat */}
-      <h1 className="text-4xl md:text-5xl font-black mt-12 mb-8 text-white tracking-tight transition-colors duration-300 drop-shadow-lg font-montserrat">
-        Find Your Movie!
-      </h1>
+      {/* Header with title and favorites button */}
+      <div className="w-full max-w-7xl px-4 pt-8 pb-4 flex items-center justify-between">
+        {/* Spacer for alignment */}
+        <div className="w-20"></div>
+        {/* Header Title - Compact, neat, simple font using Montserrat */}
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight transition-colors duration-300 drop-shadow-lg font-montserrat">
+          Find Your Movie!
+        </h1>
+        {/* Favorites Button - Top right */}
+        <button
+          onClick={() => navigate('/favorites')}
+          className="text-white text-lg font-semibold px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all flex items-center gap-2"
+        >
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill={favorites.length > 0 ? "#7C3AED" : "none"} 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className="lucide lucide-heart"
+          >
+            <path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>
+          </svg>
+          Favorites
+        </button>
+      </div>
       
       {/* Search Bar Container - Flexbox row on desktop, column on mobile with gap between input and button */}
       <div className="flex flex-col md:flex-row justify-center items-center w-full gap-3 md:gap-3 mb-12 px-4">
@@ -323,7 +371,7 @@ function App() {
                   >
                     {/* Favorite Heart Icon - Top right corner */}
                     <button
-                      onClick={() => toggleFavorite(movieId)}
+                      onClick={() => toggleFavorite(movieId, movie)}
                       className="absolute top-4 right-4 z-10 cursor-pointer p-2 hover:scale-110 transition-transform"
                       aria-label={isFavorite(movieId) ? "Remove from favorites" : "Add to favorites"}
                     >
