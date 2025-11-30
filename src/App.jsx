@@ -35,7 +35,43 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [displayedCount, setDisplayedCount] = useState(12); // Number of movies to show initially
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [favorites, setFavorites] = useState([]); // Store favorite movie IDs
   const observerTarget = useRef(null);
+
+  // Load favorites from localStorage on component mount
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem('favoriteMovies');
+    if (savedFavorites) {
+      try {
+        setFavorites(JSON.parse(savedFavorites));
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+      }
+    }
+  }, []);
+
+  // Save favorites to localStorage whenever favorites change
+  useEffect(() => {
+    localStorage.setItem('favoriteMovies', JSON.stringify(favorites));
+  }, [favorites]);
+
+  // Toggle favorite status for a movie
+  const toggleFavorite = (movieId) => {
+    setFavorites((prev) => {
+      if (prev.includes(movieId)) {
+        // Remove from favorites
+        return prev.filter((id) => id !== movieId);
+      } else {
+        // Add to favorites
+        return [...prev, movieId];
+      }
+    });
+  };
+
+  // Check if a movie is favorited
+  const isFavorite = (movieId) => {
+    return favorites.includes(movieId);
+  };
 
   // All attributes we want from backend for card
   const BACKEND_KEYS = {
@@ -232,8 +268,8 @@ function App() {
         Find Your Movie!
       </h1>
       
-      {/* Search Bar Container - Flexbox row on desktop, column on mobile with better spacing */}
-      <div className="flex flex-col md:flex-row justify-center items-center w-full gap-3 md:gap-0 mb-12 px-4">
+      {/* Search Bar Container - Flexbox row on desktop, column on mobile with gap between input and button */}
+      <div className="flex flex-col md:flex-row justify-center items-center w-full gap-3 md:gap-3 mb-12 px-4">
         {/* Search Input - Rounded left side, semi-transparent white background with better styling */}
         <input
           type="text"
@@ -241,12 +277,12 @@ function App() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="text-base md:text-lg px-5 py-3.5 rounded-l-lg md:rounded-l-lg rounded-r-lg md:rounded-r-none border-2 border-white outline-none bg-white/10 backdrop-blur-sm text-white placeholder-white/70 w-full md:w-80 max-w-md transition-all duration-300 shadow-lg focus:border-white focus:bg-white/20 focus:shadow-xl focus:scale-105"
+          className="text-base md:text-lg px-5 py-3.5 rounded-lg md:rounded-lg border-2 border-white outline-none bg-white/10 backdrop-blur-sm text-white placeholder-white/70 w-full md:w-80 max-w-md transition-all duration-300 shadow-lg focus:border-white focus:bg-white/20 focus:shadow-xl focus:scale-105"
         />
         {/* Search Button - Rounded right side, white background with violet text and hover effects */}
         <button
           onClick={handleSearch}
-          className="rounded-r-lg md:rounded-r-lg rounded-l-lg md:rounded-l-none border-none px-10 py-3.5 text-base md:text-lg font-semibold bg-white text-violet cursor-pointer -ml-0.5 md:-ml-0.5 transition-all duration-300 shadow-lg hover:bg-violet-50 hover:text-violet-dark hover:shadow-xl hover:scale-105 active:scale-95 w-full md:w-auto"
+          className="rounded-lg md:rounded-lg border-none px-10 py-3.5 text-base md:text-lg font-semibold bg-white text-violet cursor-pointer transition-all duration-300 shadow-lg hover:bg-violet-50 hover:text-violet-dark hover:shadow-xl hover:scale-105 active:scale-95 w-full md:w-auto"
         >
           Search
         </button>
@@ -285,6 +321,27 @@ function App() {
                     key={uniqueKey}
                     className="bg-white rounded-2xl shadow-xl min-w-[280px] max-w-[320px] min-h-[420px] p-6 flex flex-col items-center mb-6 transition-all duration-300 relative border-none break-words w-[90vw] md:w-auto max-w-[95vw] md:max-w-[320px] hover:shadow-2xl hover:scale-105 hover:-translate-y-2"
                   >
+                    {/* Favorite Heart Icon - Top right corner */}
+                    <button
+                      onClick={() => toggleFavorite(movieId)}
+                      className="absolute top-4 right-4 z-10 cursor-pointer p-2 hover:scale-110 transition-transform"
+                      aria-label={isFavorite(movieId) ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        width="24" 
+                        height="24" 
+                        viewBox="0 0 24 24" 
+                        fill={isFavorite(movieId) ? "#7C3AED" : "none"} 
+                        stroke={isFavorite(movieId) ? "#7C3AED" : "currentColor"} 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className="lucide lucide-heart"
+                      >
+                        <path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>
+                      </svg>
+                    </button>
                     {/* Movie Poster or Placeholder - Better rounded corners and sizing */}
                     {moviePoster && moviePoster !== "N/A" ? (
                       <img
