@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // Import Raleway font from Google Fonts
 const fontRalewayLink = document.getElementById('raleway-font-google');
@@ -12,12 +12,51 @@ if (!fontRalewayLink) {
 
 const VIOLET = "#7C3AED"; // Purple similar to todo app
 
+// Utility to safely extract a field with possible alternative spellings
+function getField(obj, fields, fallback = "N/A") {
+  for (const field of fields) {
+    if (
+      Object.prototype.hasOwnProperty.call(obj, field) &&
+      obj[field] !== undefined &&
+      obj[field] !== null &&
+      obj[field] !== ""
+    ) {
+      return obj[field];
+    }
+  }
+  return fallback;
+}
+
 function App() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [filtered, setFiltered] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [displayedCount, setDisplayedCount] = useState(12); // Number of movies to show initially
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef(null);
+
+  // All attributes we want from backend for card
+  const BACKEND_KEYS = {
+    title: ["title", "Title", "name"],
+    year: ["year", "Year", "releaseYear"],
+    poster: ["Poster", "poster", "image"],
+    genres: ["genres", "Genres", "genre"],
+    imdbID: ["imdbID", "id", "_id"],
+    released: ["Released", "released"],
+    rated: ["Rated", "rated"],
+    runtime: ["Runtime", "runtime"],
+    director: ["Director", "director"],
+    writer: ["Writer", "writer"],
+    actors: ["Actors", "actors"],
+    plot: ["Plot", "plot"],
+    language: ["Language", "language"],
+    country: ["Country", "country"],
+    awards: ["Awards", "awards"],
+    type: ["Type", "type"],
+    totalseasons: ["totalSeasons", "TotalSeasons", "totalseasons"]
+  };
 
   const handleSearch = async () => {
     const trimmedQuery = search.trim();
@@ -33,20 +72,21 @@ function App() {
 
     try {
       const response = await fetch(
-        "https://gist.githubusercontent.com/saniyusuf/406b843afdfb9c6a86e25753fe2761f4/raw/075b6aaba5ee43554ecd55006e5d080a8acf08fe/Film.JSON"
+        "http://localhost:5000/movies"
       );
       if (!response.ok) {
         throw new Error("Failed to fetch movies");
       }
       const data = await response.json();
       const moviesArray = Array.isArray(data) ? data : (data.movies || data.Movies || []);
-      setMovies(moviesArray); // Optional, can be omitted if you only use filtered
+      setMovies(moviesArray);
       const query = trimmedQuery.toLowerCase();
       const filteredMovies = moviesArray.filter((movie) => {
-        const title = movie.title || movie.Title || movie.name || "";
+        const title = getField(movie, BACKEND_KEYS.title, "");
         return title.toLowerCase().includes(query);
       });
       setFiltered(filteredMovies);
+      setDisplayedCount(12); // Reset to initial count on new search
     } catch (error) {
       console.error("Error fetching movies:", error);
       setMovies([]);
@@ -60,6 +100,95 @@ function App() {
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleSearch();
   };
+
+  // Create infinite loop of movies by duplicating the array
+  const createInfiniteMovies = () => {
+    if (filtered.length === 0) return [];
+    const repetitions = Math.ceil(displayedCount / filtered.length) + 1;
+    const infiniteArray = [];
+    for (let i = 0; i < repetitions; i++) {
+      infiniteArray.push(...filtered);
+    }
+    return infiniteArray.slice(0, displayedCount);
+  };
+
+  // Get movies to display (with infinite loop)
+  const moviesToDisplay = filtered.length > 0 ? createInfiniteMovies() : [];
+  const hasMoreMovies = true; // Always true for infinite scroll
+
+  // Infinite scroll: Load more movies when user scrolls near bottom
+  useEffect(() => {
+    if (!hasSearched || filtered.length === 0) {
+      return;
+    }
+
+    const loadMoreMovies = () => {
+      if (isLoadingMore || loading) {
+        return;
+      }
+
+      setIsLoadingMore(true);
+      // Load more movies immediately (always add 12 more)
+      setTimeout(() => {
+        setDisplayedCount((prev) => prev + 12);
+        setIsLoadingMore(false);
+      }, 200);
+    };
+
+    // Method 1: IntersectionObserver (preferred)
+    const currentTarget = observerTarget.current;
+    let observer = null;
+
+    if (currentTarget) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (entry.isIntersecting) {
+            loadMoreMovies();
+          }
+        },
+        { 
+          threshold: 0.01, // Trigger even when 1% visible
+          rootMargin: '300px' // Start loading 300px before reaching the element
+        }
+      );
+
+      observer.observe(currentTarget);
+    }
+
+    // Method 2: Window scroll event (fallback - more reliable)
+    const handleScroll = () => {
+      const scrollPosition = window.innerHeight + window.scrollY;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // Trigger when within 400px of bottom
+      if (documentHeight - scrollPosition < 400) {
+        loadMoreMovies();
+      }
+    };
+
+    // Use throttling for scroll event
+    let scrollTimeout = null;
+    const throttledScroll = () => {
+      if (scrollTimeout) return;
+      scrollTimeout = setTimeout(() => {
+        handleScroll();
+        scrollTimeout = null;
+      }, 100);
+    };
+
+    window.addEventListener('scroll', throttledScroll, { passive: true });
+
+    return () => {
+      if (observer && currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+      window.removeEventListener('scroll', throttledScroll);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    };
+  }, [displayedCount, filtered.length, isLoadingMore, loading, hasSearched]);
 
   return (
     <div className="for-easy-to-view">
@@ -140,6 +269,7 @@ function App() {
           padding: 12px 10px 32px 10px;
           width: 100%;
           transition: all 0.3s ease;
+          min-height: 100px;
         }
         .fev-movie-card {
           background: #fff;
@@ -156,10 +286,25 @@ function App() {
           transition: all 0.3s;
           position: relative;
           border: none;
+          word-break: break-word;
         }
-        .fev-movie-card:hover {
-          transform: translateY(-3px) scale(1.021);
-          box-shadow: 0 6px 28px 0 rgba(44,0,122,0.19);
+        .fev-movie-card-details {
+          width: 100%;
+        }
+        .fev-movie-card-details p {
+          margin: 0.2em 0;
+          color: #333;
+          font-size: 0.99em;
+          text-align: left;
+          word-break: break-word;
+        }
+        .fev-movie-card-details strong {
+          color: #7C3AED;
+          font-weight: 600;
+        }
+        .fev-movie-card-details .fev-movie-detail-label {
+          min-width: 90px;
+          display: inline-block;
         }
         .fev-movie-img, .fev-movie-img-placeholder {
           width: 100%;
@@ -197,7 +342,6 @@ function App() {
           color: #7C3AED;
           font-weight: 600;
         }
-
         /* Code block styling */
         .for-easy-to-view code, .fev-code-block {
           display: block;
@@ -213,7 +357,6 @@ function App() {
           transition: all 0.3s;
           font-size: 1.05em;
         }
-
         /* "No movies found" and loading msg */
         .fev-message {
           font-size: 1.2em;
@@ -226,8 +369,6 @@ function App() {
           margin: 1em auto;
           font-weight: 500;
         }
-
-        /* Responsive design for easy view */
         @media (max-width: 700px) {
           .fev-header-title {
             font-size: 2em;
@@ -290,16 +431,40 @@ function App() {
                 No movies found. Try a different search.
               </div>
             ) : (
-              filtered.map((movie, index) => {
-                const movieTitle = movie.title || movie.Title || movie.name || "Unknown";
-                const movieYear = movie.year || movie.Year || movie.releaseYear || "N/A";
-                const moviePoster = movie.Poster || movie.poster || movie.image || null;
-                const movieGenres = movie.genres || movie.Genres || movie.genre || [];
-                const movieId = movie.imdbID || movie.id || movie._id || `movie-${index}`;
+              <>
+                {moviesToDisplay.map((movie, index) => {
+                const movieTitle = getField(movie, BACKEND_KEYS.title, "Unknown");
+                const movieYear = getField(movie, BACKEND_KEYS.year, "N/A");
+                const moviePoster = getField(movie, BACKEND_KEYS.poster, null);
+                const movieGenres = getField(movie, BACKEND_KEYS.genres, []);
+                // Create unique key for each movie instance (including duplicates)
+                const movieId = getField(movie, BACKEND_KEYS.imdbID, `movie-${index}`);
+                const uniqueKey = `${movieId}-${index}`;
+                // Additional requested fields:
+                const movieReleased = getField(movie, BACKEND_KEYS.released, "N/A");
+                const movieRated = getField(movie, BACKEND_KEYS.rated, "N/A");
+                const movieRuntime = getField(movie, BACKEND_KEYS.runtime, "N/A");
+                const movieDirector = getField(movie, BACKEND_KEYS.director, "N/A");
+                const movieWriter = getField(movie, BACKEND_KEYS.writer, "N/A");
+                const movieActors = getField(movie, BACKEND_KEYS.actors, "N/A");
+                const moviePlot = getField(movie, BACKEND_KEYS.plot, "N/A");
+                const movieLanguage = getField(movie, BACKEND_KEYS.language, "N/A");
+                const movieCountry = getField(movie, BACKEND_KEYS.country, "N/A");
+                const movieAwards = getField(movie, BACKEND_KEYS.awards, "N/A");
+                const movieType = getField(movie, BACKEND_KEYS.type, "N/A");
+                const movieTotalSeasons = getField(movie, BACKEND_KEYS.totalseasons, "N/A");
+
+                // Make genres display nicely
+                let genresDisplay = "N/A";
+                if (Array.isArray(movieGenres)) {
+                  genresDisplay = movieGenres.length > 0 ? movieGenres.join(", ") : "N/A";
+                } else if (typeof movieGenres === "string") {
+                  genresDisplay = movieGenres;
+                }
 
                 return (
                   <div
-                    key={movieId}
+                    key={uniqueKey}
                     className="fev-movie-card"
                   >
                     {moviePoster && moviePoster !== "N/A" ? (
@@ -316,18 +481,44 @@ function App() {
                     <h2 className="fev-movie-title">
                       {movieTitle}
                     </h2>
-                    <p className="fev-movie-year">
-                      <strong>Year:</strong> {movieYear}
-                    </p>
-                    <p className="fev-movie-genre">
-                      <strong>Genre:</strong>{" "}
-                      {Array.isArray(movieGenres)
-                        ? movieGenres.join(", ")
-                        : movieGenres || "N/A"}
-                    </p>
+                    <div className="fev-movie-card-details">
+                      <p><strong className="fev-movie-detail-label">Year:</strong> {movieYear}</p>
+                      <p><strong className="fev-movie-detail-label">Released On:</strong> {movieReleased}</p>
+                      <p><strong className="fev-movie-detail-label">Runtime:</strong> {movieRuntime}</p>
+                      <p><strong className="fev-movie-detail-label">Actors:</strong> {movieActors}</p>
+                      <p><strong className="fev-movie-detail-label">Language:</strong> {movieLanguage}</p>
+                      {movieType && String(movieType).toLowerCase() === "series" && (
+                        <p><strong className="fev-movie-detail-label">Total Seasons:</strong> {movieTotalSeasons}</p>
+                      )}
+                    </div>
                   </div>
                 );
-              })
+              })}
+              {/* Infinite scroll trigger element - always active for continuous loading */}
+              {filtered.length > 0 && (
+                <div 
+                  ref={observerTarget} 
+                  style={{ 
+                    width: "100%", 
+                    minHeight: "150px", 
+                    marginTop: "30px",
+                    marginBottom: "20px",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    padding: "20px"
+                  }}
+                >
+                  {isLoadingMore ? (
+                    <div className="fev-message" style={{ fontSize: "1em", padding: "0.8em" }}>
+                      Loading more movies...
+                    </div>
+                  ) : (
+                    <div style={{ height: "50px", width: "100%" }}></div>
+                  )}
+                </div>
+              )}
+            </>
             )}
           </div>
         )
