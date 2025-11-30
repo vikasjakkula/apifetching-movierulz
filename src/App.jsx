@@ -262,10 +262,10 @@ function App() {
           // Movies List Container - Flexbox grid with gap, responsive padding
           <div className="flex gap-8 flex-wrap justify-center py-6 px-4 pb-12 w-full transition-all duration-300 ease-in-out min-h-[100px] max-w-7xl">
             {filtered.length === 0 ? (
-              // No Results Message - Better styled with backdrop blur
-              <div className="text-xl md:text-2xl text-white bg-violet/30 backdrop-blur-sm px-8 py-6 rounded-xl shadow-xl inline-block my-8 font-medium border border-white/20">
+              // No Results Message - Simple text, no box
+              <p className="text-xl md:text-2xl text-white my-8 font-medium">
                 No movies found. Try a different search.
-              </div>
+              </p>
             ) : (
               <>
                 {moviesToDisplay.map((movie, index) => {
